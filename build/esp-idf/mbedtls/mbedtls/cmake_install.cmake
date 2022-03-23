@@ -34,8 +34,8 @@ endif()
 
 if(NOT CMAKE_INSTALL_LOCAL_ONLY)
   # Include the install script for each subdirectory.
-  include("C:/Users/kitkat/Desktop/LIDARserialconsole/build/esp-idf/mbedtls/mbedtls/library/cmake_install.cmake")
-  include("C:/Users/kitkat/Desktop/LIDARserialconsole/build/esp-idf/mbedtls/mbedtls/include/cmake_install.cmake")
+  include("C:/Users/kitkat/Desktop/LIDAR-Project-Firmware/build/esp-idf/mbedtls/mbedtls/library/cmake_install.cmake")
+  include("C:/Users/kitkat/Desktop/LIDAR-Project-Firmware/build/esp-idf/mbedtls/mbedtls/include/cmake_install.cmake")
 
 endif()
 

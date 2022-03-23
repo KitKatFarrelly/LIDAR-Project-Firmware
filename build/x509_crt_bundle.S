@@ -1,4 +1,4 @@
-/* * Data converted from C:/Users/kitkat/Desktop/LIDARserialconsole/build/esp-idf/mbedtls/x509_crt_bundle
+/* * Data converted from C:/Users/kitkat/Desktop/LIDAR-Project-Firmware/build/esp-idf/mbedtls/x509_crt_bundle
  */
 .data
 .section .rodata.embedded

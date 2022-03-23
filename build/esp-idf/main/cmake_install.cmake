@@ -1,4 +1,4 @@
-# Install script for directory: C:/Users/kitkat/Desktop/LIDARserialconsole/main
+# Install script for directory: C:/Users/kitkat/Desktop/LIDAR-Project-Firmware/main
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)

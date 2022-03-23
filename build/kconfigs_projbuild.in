@@ -3,4 +3,4 @@ source "C:/Users/kitkat/Downloads/esp-idf-v4.3.1/esp-idf-v4.3.1/components/bootl
 source "C:/Users/kitkat/Downloads/esp-idf-v4.3.1/esp-idf-v4.3.1/components/esptool_py/Kconfig.projbuild"
 source "C:/Users/kitkat/Downloads/esp-idf-v4.3.1/esp-idf-v4.3.1/components/partition_table/Kconfig.projbuild"
 source "C:/Users/kitkat/Downloads/esp-idf-v4.3.1/esp-idf-v4.3.1/examples/common_components/protocol_examples_common/Kconfig.projbuild"
-source "C:/Users/kitkat/Desktop/LIDARserialconsole/main/Kconfig.projbuild"
+source "C:/Users/kitkat/Desktop/LIDAR-Project-Firmware/main/Kconfig.projbuild"

@@ -64,7 +64,6 @@ int udp_rcmsg(int sock)
 		ESP_LOGE(TAG, "recvfrom failed: errno %d", errno);
 		return len;
 	}
-	ESP_LOGI(TAG, "%s", rx_buffer);
 	netflags = 0;
 	return len;
 }
@@ -78,7 +77,7 @@ int udp_sndmsg(int sock)
 	} else if (source_addr.ss_family == PF_INET6) {
 		inet6_ntoa_r(((struct sockaddr_in6 *)&source_addr)->sin6_addr, addr_str, sizeof(addr_str) - 1);
 	}
-	int err = sendto(sock, tx_buffer, 19, 0, (struct sockaddr *)&source_addr, sizeof(source_addr));
+	int err = sendto(sock, tx_buffer, strlen(tx_buffer), 0, (struct sockaddr *)&source_addr, sizeof(source_addr));
 	netflags = 0;
 	if (err < 0) {
 		ESP_LOGE(TAG, "Error occurred during sending: errno %d", errno);
@@ -88,7 +87,7 @@ int udp_sndmsg(int sock)
 	return err;
 }
 
-void lcd_cmd(spi_device_handle_t spi, uint8_t* cmd)
+void lcd_cmd(spi_device_handle_t spi, uint8_t* cmd, uint8_t outputflag)
 {
     esp_err_t ret;
     spi_transaction_t t;
@@ -100,18 +99,48 @@ void lcd_cmd(spi_device_handle_t spi, uint8_t* cmd)
     ret=spi_device_polling_transmit(spi, &t);  //Transmit!
     assert(ret==ESP_OK);            //Should have had no issues.
     uint8_t* output = t.rx_data;
-    uint8_t i = 0;
-    char hex[4];
-    strcpy(tx_buffer, "output bytes: ");
-    while(i < 2){
-        	sprintf(hex+i*2,"%02x", *output);
-        	output++;
-        	i++;
+    if(outputflag){
+    	uint8_t i = 0;
+		char inputhex[5] = {0,0,0,0,0};
+		uint8_t* cmdptr = cmd;
+		while(i < 2){
+				sprintf(inputhex+i*2,"%02x", *cmdptr);
+				cmdptr++;
+				i++;
+		}
+		char hex[5] = {0,0,0,0,0};
+		i = 0;
+		while(i < 2){
+				sprintf(hex+i*2,"%02x", *output);
+				output++;
+				i++;
+		}
+		strcpy(tx_buffer, inputhex);
+		strcat(tx_buffer, "          ");
+		strcat(tx_buffer, hex);
+		strcat(tx_buffer, "\n\0");
+		netflags = 2;
+		while(netflags == 2) vTaskDelay(10 / portTICK_PERIOD_MS);
     }
-    strcat(tx_buffer, hex);
-    strcat(tx_buffer, "\n\0");
-    netflags = 2;
-    while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
+}
+
+void testcmd(spi_device_handle_t spi)
+{
+	uint8_t* command = malloc(2*sizeof(uint8_t));
+	command[0] = 0x87;
+	command[1] = 0x00;
+	lcd_cmd(spi, command, 1);
+	command[0] = 0x36;
+	lcd_cmd(spi, command, 1);
+	command[0] = 0x37;
+	lcd_cmd(spi, command, 1);
+	command[0] = 0x38;
+	lcd_cmd(spi, command, 1);
+	command[0] = 0x39;
+	lcd_cmd(spi, command, 1);
+	command[0] = 0x00;
+	lcd_cmd(spi, command, 1);
+	free(command);
 }
 
 void udp_server_startup(void *pvParameters)
@@ -213,9 +242,14 @@ void app_main(void)
 	ret=spi_bus_add_device(SPI3_HOST, &devcfg, &spi);
 	ESP_ERROR_CHECK(ret);
 	uint8_t* command = malloc(2*sizeof(uint8_t));
-	uint8_t inputbyte[4] = {0,0,0,0};
+	uint8_t inputbyte[4] = {0,0,0,0}; //for when the user inputs a 2 byte sequence to be sent to the device
+	uint8_t inputcommand[16] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}; //for when the user inputs a word command to execute on the device
 	uint8_t iter = 0;
 	int len = 0;
+	command[0] = 0;
+	command[1] = 0;
+	lcd_cmd(spi, command, 0);
+	lcd_cmd(spi, command, 0);
 	while(1){
 		while(netflags != 0) vTaskDelay(100 / portTICK_PERIOD_MS);
 		iter = 0;
@@ -232,14 +266,29 @@ void app_main(void)
 				rx_buffer[len] = 0;
 				len++;
 			}
+			if(rx_buffer[0] == 0x13 || rx_buffer[0] == 0x10){
+				return;
+			}
+			command[0] = inputbyte[0] * 16 + inputbyte[1];
+			command[1] = inputbyte[2] * 16 + inputbyte[3];
+			lcd_cmd(spi, command, 1);
+		}else{
+			while(rx_buffer[len] != 0 && iter < 16){
+				if(rx_buffer[len] >= 'a' && rx_buffer[len] <= 'z'){ //only accepts lower case letters
+					inputcommand[iter] = rx_buffer[len];
+					iter++;
+				}
+				rx_buffer[len] = 0;
+				len++;
+			}
+			inputcommand[iter] = 0;
+			strcpy(tx_buffer, "executing ");
+			strcat(tx_buffer, (char*)inputcommand);
+			strcat(tx_buffer, "\n\0");
+			netflags = 2;
+			while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
+			testcmd(spi);
 		}
-
-		if(rx_buffer[0] == 0x13 || rx_buffer[0] == 0x10){
-			return;
-		}
-		command[0] = inputbyte[0] * 16 + inputbyte[1];
-		command[1] = inputbyte[2] * 16 + inputbyte[3];
-		lcd_cmd(spi, command);
 	}
 
 	free(command);
