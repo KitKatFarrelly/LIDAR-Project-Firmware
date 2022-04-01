@@ -124,7 +124,7 @@ void lcd_cmd(spi_device_handle_t spi, uint8_t* cmd, uint8_t outputflag)
     }
 }
 
-void testcmd(spi_device_handle_t spi)
+void testcmd(spi_device_handle_t spi) //test command that returns the chip and wafer id of the lidar
 {
 	uint8_t* command = malloc(2*sizeof(uint8_t));
 	command[0] = 0x87;
@@ -140,6 +140,108 @@ void testcmd(spi_device_handle_t spi)
 	lcd_cmd(spi, command, 1);
 	command[0] = 0x00;
 	lcd_cmd(spi, command, 1);
+	free(command);
+}
+
+void sequencercmd(spi_device_handle_t spi) //startup sequence for lidar
+{
+	uint8_t* command = malloc(2*sizeof(uint8_t));
+	int vis = 1;
+	command[0] = 0x84;
+	command[1] = 0x00;
+	lcd_cmd(spi, command, vis); //page select 4
+	command[0] = 0x51;
+	lcd_cmd(spi, command, vis); //write 0x11 0x00
+	command[0] = 0x82;
+	lcd_cmd(spi, command, vis); //page select 2
+	command[0] = 0x47;
+	command[1] = 0x01;
+	lcd_cmd(spi, command, vis); //write 0x07 (SR_Program) 0x01
+	command[0] = 0x40;
+	command[1] = 0x00;
+	lcd_cmd(spi, command, vis); //write 0x00 (SR_Address) 0x00
+	command[0] = 0x41;
+	command[1] = 0x43;
+	lcd_cmd(spi, command, vis); //write 0x01 (SR_Data_0) 0x43
+	command[0] = 0x42;
+	command[1] = 0x18;
+	lcd_cmd(spi, command, vis); //write 0x02 (SR_Data_1) 0x18
+	command[0] = 0x43;
+	command[1] = 0x02;
+	lcd_cmd(spi, command, vis);
+	command[0] = 0x44;
+	command[1] = 0x00;
+	lcd_cmd(spi, command, vis);
+	command[0] = 0x45;
+	lcd_cmd(spi, command, vis);
+	command[0] = 0x46;
+	command[1] = 0x2D;
+	lcd_cmd(spi, command, vis);
+	command[0] = 0x47;
+	command[1] = 0x07;
+	lcd_cmd(spi, command, vis);
+	command[0] = 0x40;
+	command[1] = 0x01;
+	lcd_cmd(spi, command, vis);
+	command[0] = 0x41;
+	command[1] = 0x43;
+	lcd_cmd(spi, command, vis);
+	command[0] = 0x42;
+	command[1] = 0x18;
+	lcd_cmd(spi, command, vis);
+	command[0] = 0x43;
+	command[1] = 0x00;
+	lcd_cmd(spi, command, vis);
+	command[0] = 0x44;
+	lcd_cmd(spi, command, vis);
+	command[0] = 0x45;
+	command[1] = 0xA8;
+	lcd_cmd(spi, command, vis);
+	command[0] = 0x46;
+	command[1] = 0x2E;
+	lcd_cmd(spi, command, vis);
+	command[0] = 0x47;
+	command[1] = 0x07;
+	lcd_cmd(spi, command, vis);
+	command[0] = 0x40;
+	command[1] = 0x02;
+	lcd_cmd(spi, command, vis);
+	command[0] = 0x41;
+	command[1] = 0x43;
+	lcd_cmd(spi, command, vis);
+	command[0] = 0x42;
+	command[1] = 0x18;
+	lcd_cmd(spi, command, vis);
+	command[0] = 0x43;
+	command[1] = 0x11;
+	lcd_cmd(spi, command, vis);
+	command[0] = 0x44;
+	command[1] = 0x03;
+	lcd_cmd(spi, command, vis);
+	command[0] = 0x45;
+	command[1] = 0x50;
+	lcd_cmd(spi, command, vis);
+	command[0] = 0x46;
+	command[1] = 0x2F;
+	lcd_cmd(spi, command, vis);
+	command[0] = 0x47;
+	command[1] = 0x07;
+	lcd_cmd(spi, command, vis);
+	command[0] = 0x48;
+	lcd_cmd(spi, command, vis);
+	command[0] = 0x49;
+	command[1] = 0x00;
+	lcd_cmd(spi, command, vis);
+	command[0] = 0x47;
+	lcd_cmd(spi, command, vis);
+	command[0] = 0x84;
+	lcd_cmd(spi, command, vis); //select page 4
+	command[0] = 0x51;
+	command[1] = 0x01;
+	lcd_cmd(spi, command, vis); //write 0x11 0x01
+	command[0] = 0x00;
+	command[1] = 0x00;
+	lcd_cmd(spi, command, vis); //flush last command
 	free(command);
 }
 
@@ -250,6 +352,7 @@ void app_main(void)
 	command[1] = 0;
 	lcd_cmd(spi, command, 0);
 	lcd_cmd(spi, command, 0);
+	lcd_cmd(spi, command, 0);
 	while(1){
 		while(netflags != 0) vTaskDelay(100 / portTICK_PERIOD_MS);
 		iter = 0;
@@ -287,7 +390,11 @@ void app_main(void)
 			strcat(tx_buffer, "\n\0");
 			netflags = 2;
 			while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
-			testcmd(spi);
+			if(strcmp((char*) inputcommand, (const char*) "test") == 0){
+				testcmd(spi);
+			}else if(strcmp((char*) inputcommand, (const char*) "sequencer") == 0){
+				sequencercmd(spi);
+			}
 		}
 	}
 
