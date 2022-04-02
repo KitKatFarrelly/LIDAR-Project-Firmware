@@ -1448,3 +1448,15 @@
 42	77	6697722152859589	bootloader/bootloader.bin	90843bc14184ccb0
 42	77	6697722152859589	bootloader/bootloader.map	90843bc14184ccb0
 78	14641	0	CMakeFiles/flash	d1363c83f7147b1b
+4	5273	6705623822047905	build.ninja	7c2dbe7a79ffc0de
+44	87	6697722152859589	bootloader-prefix/src/bootloader-stamp/bootloader-build	90843bc14184ccb0
+44	87	6697722152859589	bootloader/bootloader.elf	90843bc14184ccb0
+44	87	6697722152859589	bootloader/bootloader.bin	90843bc14184ccb0
+44	87	6697722152859589	bootloader/bootloader.map	90843bc14184ccb0
+45	248	6705623825105629	esp-idf/app_update/CMakeFiles/__idf_app_update.dir/esp_app_desc.c.obj	f05fb5e6b31df8e4
+254	288	6705623825534730	esp-idf/app_update/libapp_update.a	87c42cc028e6134f
+289	882	6705623831343343	esp-idf/main/CMakeFiles/__idf_main.dir/main.c.obj	1ee877107a74783b
+893	926	6705623831911820	esp-idf/main/libmain.a	2d51b99a64271543
+926	2171	6705623844244108	esp-idf/esp32/ld/esp32.project.ld	27f3bfb767cfe28e
+2175	4477	6705623867255644	app-template.elf	de61bea63622b685
+4477	4675	6705623869409885	.bin_timestamp	bb822c84f7ed1847
