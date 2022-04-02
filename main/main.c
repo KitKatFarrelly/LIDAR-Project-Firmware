@@ -87,7 +87,7 @@ int udp_sndmsg(int sock)
 	return err;
 }
 
-void lcd_cmd(spi_device_handle_t spi, uint8_t* cmd, uint8_t outputflag)
+uint8_t* lcd_cmd(spi_device_handle_t spi, uint8_t* cmd, uint8_t outputflag)
 {
     esp_err_t ret;
     spi_transaction_t t;
@@ -122,6 +122,9 @@ void lcd_cmd(spi_device_handle_t spi, uint8_t* cmd, uint8_t outputflag)
 		netflags = 2;
 		while(netflags == 2) vTaskDelay(10 / portTICK_PERIOD_MS);
     }
+    cmd[0] = t.rx_data[0];
+    cmd[1] = t.rx_data[1];
+    return cmd;
 }
 
 void testcmd(spi_device_handle_t spi) //test command that returns the chip and wafer id of the lidar
@@ -146,7 +149,7 @@ void testcmd(spi_device_handle_t spi) //test command that returns the chip and w
 void sequencercmd(spi_device_handle_t spi) //startup sequence for lidar
 {
 	uint8_t* command = malloc(2*sizeof(uint8_t));
-	int vis = 1;
+	int vis = 0;
 	command[0] = 0x84;
 	command[1] = 0x00;
 	lcd_cmd(spi, command, vis); //page select 4
@@ -242,6 +245,85 @@ void sequencercmd(spi_device_handle_t spi) //startup sequence for lidar
 	command[0] = 0x00;
 	command[1] = 0x00;
 	lcd_cmd(spi, command, vis); //flush last command
+	free(command);
+}
+
+void UFSstartupcmd(spi_device_handle_t spi) //startup sequence for UFS mode.
+{
+	uint8_t* command = malloc(2*sizeof(uint8_t));
+	int vis = 0;
+	command[0] = 0x81;
+	command[1] = 0x00;
+	lcd_cmd(spi, command, vis); //page select 1
+	command[0] = 0x5A;
+	lcd_cmd(spi, command, vis); //Adjust 1
+	command[0] = 0x85;
+	lcd_cmd(spi, command, vis); //page select 5
+	command[0] = 0x4B;
+	lcd_cmd(spi, command, vis); //Adjust 2
+	command[0] = 0x00;
+	lcd_cmd(spi, command, vis); //NOP
+	command[0] = 0x84;
+	lcd_cmd(spi, command, vis); //page select 4
+	command[0] = 0x52;
+	command[1] = 0x30;
+	lcd_cmd(spi, command, vis); //Set modulation selection
+	command[0] = 0x55;
+	command[1] = 0x2B;
+	lcd_cmd(spi, command, vis); //Set UFS mode
+	command[0] = 0x45;
+	command[1] = 0x01;
+	lcd_cmd(spi, command, vis); //set mod freq to 10MHz
+	command[0] = 0x85;
+	command[1] = 0x00;
+	lcd_cmd(spi, command, vis); //page select 5
+	//set int time 1.6384ms
+	command[0] = 0x40;
+	lcd_cmd(spi, command, vis); //integration multiplier high byte
+	command[0] = 0x41;
+	command[1] = 0x01;
+	lcd_cmd(spi, command, vis); //integration multiplier low byte
+	command[0] = 0x42;
+	command[1] = 0xFF;
+	lcd_cmd(spi, command, vis); //integration length high byte
+	command[0] = 0x43;
+	lcd_cmd(spi, command, vis); //integration length low byte
+	command[0] = 0x82;
+	command[1] = 0x00;
+	lcd_cmd(spi, command, vis); //page select 2
+	command[0] = 0x58;
+	command[1] = 0x01;
+	lcd_cmd(spi, command, vis); //start measurement
+	command[0] = 0x00;
+	command[1] = 0x00;
+	lcd_cmd(spi, command, vis); //NOP
+	free(command);
+}
+
+void getUFSdata(spi_device_handle_t spi, unsigned int* ret_dist) //return a frame of UFS data
+{
+	uint8_t* command = malloc(2*sizeof(uint8_t));
+	uint8_t* ret_data;
+	command[0] = 0x82;
+	command[1] = 0x00;
+	ret_data = lcd_cmd(spi, command, 0); //page select 2
+	for(int i = 0; i < 4; i++){
+		while(ret_data[0] != 0x35 || ret_data[1] != 0x82){
+			command[0] = 0x35;
+			command[1] = 0x00;
+			lcd_cmd(spi, command, 0); //Read STATUS
+			command[0] = 0x00;
+			ret_data = lcd_cmd(spi, command, 1); //NOP, read return of status read
+		}
+		command[0] = 0x34;
+		lcd_cmd(spi, command, 0); //read MSB
+		command[0] = 0x34;
+		ret_data = lcd_cmd(spi, command, 1); //read LSB
+		ret_dist[i] = ret_data[1] * 256;
+		command[0] = 0x00;
+		ret_data = lcd_cmd(spi, command, 1); //NOP
+		ret_dist[i] += ret_data[1];
+	}
 	free(command);
 }
 
@@ -377,7 +459,7 @@ void app_main(void)
 			lcd_cmd(spi, command, 1);
 		}else{
 			while(rx_buffer[len] != 0 && iter < 16){
-				if(rx_buffer[len] >= 'a' && rx_buffer[len] <= 'z'){ //only accepts lower case letters
+				if((rx_buffer[len] >= 'a' && rx_buffer[len] <= 'z') || (rx_buffer[len] == ' ')){ //only accepts lower case letters and space
 					inputcommand[iter] = rx_buffer[len];
 					iter++;
 				}
@@ -390,11 +472,44 @@ void app_main(void)
 			strcat(tx_buffer, "\n\0");
 			netflags = 2;
 			while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
+			int real_command = 0;
+			unsigned int distances[64] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 			if(strcmp((char*) inputcommand, (const char*) "test") == 0){
 				testcmd(spi);
+				real_command = 1;
 			}else if(strcmp((char*) inputcommand, (const char*) "sequencer") == 0){
 				sequencercmd(spi);
+				real_command = 1;
+			}else if(strcmp((char*) inputcommand, (const char*) "ufs start") == 0){
+				UFSstartupcmd(spi);
+				real_command = 1;
+			}else if(strcmp((char*) inputcommand, (const char*) "ufs data") == 0){
+				getUFSdata(spi, distances);
+				char dist_str[6] = {0,0,0,0,0,0};
+				strcpy(tx_buffer, "distances: ");
+				for(int dist_iter = 0; dist_iter < 4; dist_iter++){
+					sprintf(dist_str,"%05u", distances[dist_iter]);
+					strcat(tx_buffer, dist_str);
+					strcat(tx_buffer, ", ");
+				}
+
+				strcat(tx_buffer, "\n\0");
+				netflags = 2;
+				while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
+				real_command = 1;
 			}
+			if(real_command){
+				strcpy(tx_buffer, "finished ");
+				strcat(tx_buffer, (char*)inputcommand);
+				strcat(tx_buffer, "\n\0");
+				netflags = 2;
+				while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
+			}else{
+				strcpy(tx_buffer, "command not found\n\0");
+				netflags = 2;
+				while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
+			}
+
 		}
 	}
 
