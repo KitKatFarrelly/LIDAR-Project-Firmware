@@ -134,14 +134,19 @@ void testcmd(spi_device_handle_t spi) //test command that returns the chip and w
 	command[1] = 0x00;
 	lcd_cmd(spi, command, 1);
 	command[0] = 0x36;
+	command[1] = 0x00;
 	lcd_cmd(spi, command, 1);
 	command[0] = 0x37;
+	command[1] = 0x00;
 	lcd_cmd(spi, command, 1);
 	command[0] = 0x38;
+	command[1] = 0x00;
 	lcd_cmd(spi, command, 1);
 	command[0] = 0x39;
+	command[1] = 0x00;
 	lcd_cmd(spi, command, 1);
 	command[0] = 0x00;
+	command[1] = 0x00;
 	lcd_cmd(spi, command, 1);
 	free(command);
 }
@@ -154,8 +159,10 @@ void sequencercmd(spi_device_handle_t spi) //startup sequence for lidar
 	command[1] = 0x00;
 	lcd_cmd(spi, command, vis); //page select 4
 	command[0] = 0x51;
+	command[1] = 0x00;
 	lcd_cmd(spi, command, vis); //write 0x11 0x00
 	command[0] = 0x82;
+	command[1] = 0x00;
 	lcd_cmd(spi, command, vis); //page select 2
 	command[0] = 0x47;
 	command[1] = 0x01;
@@ -176,6 +183,7 @@ void sequencercmd(spi_device_handle_t spi) //startup sequence for lidar
 	command[1] = 0x00;
 	lcd_cmd(spi, command, vis);
 	command[0] = 0x45;
+	command[1] = 0x00;
 	lcd_cmd(spi, command, vis);
 	command[0] = 0x46;
 	command[1] = 0x2D;
@@ -196,6 +204,7 @@ void sequencercmd(spi_device_handle_t spi) //startup sequence for lidar
 	command[1] = 0x00;
 	lcd_cmd(spi, command, vis);
 	command[0] = 0x44;
+	command[1] = 0x00;
 	lcd_cmd(spi, command, vis);
 	command[0] = 0x45;
 	command[1] = 0xA8;
@@ -231,13 +240,16 @@ void sequencercmd(spi_device_handle_t spi) //startup sequence for lidar
 	command[1] = 0x07;
 	lcd_cmd(spi, command, vis);
 	command[0] = 0x48;
+	command[1] = 0x07;
 	lcd_cmd(spi, command, vis);
 	command[0] = 0x49;
 	command[1] = 0x00;
 	lcd_cmd(spi, command, vis);
 	command[0] = 0x47;
+	command[1] = 0x00;
 	lcd_cmd(spi, command, vis);
 	command[0] = 0x84;
+	command[1] = 0x00;
 	lcd_cmd(spi, command, vis); //select page 4
 	command[0] = 0x51;
 	command[1] = 0x01;
@@ -256,14 +268,19 @@ void UFSstartupcmd(spi_device_handle_t spi) //startup sequence for UFS mode.
 	command[1] = 0x00;
 	lcd_cmd(spi, command, vis); //page select 1
 	command[0] = 0x5A;
+	command[1] = 0x00;
 	lcd_cmd(spi, command, vis); //Adjust 1
 	command[0] = 0x85;
+	command[1] = 0x00;
 	lcd_cmd(spi, command, vis); //page select 5
 	command[0] = 0x4B;
+	command[1] = 0x00;
 	lcd_cmd(spi, command, vis); //Adjust 2
 	command[0] = 0x00;
+	command[1] = 0x00;
 	lcd_cmd(spi, command, vis); //NOP
 	command[0] = 0x84;
+	command[1] = 0x00;
 	lcd_cmd(spi, command, vis); //page select 4
 	command[0] = 0x52;
 	command[1] = 0x30;
@@ -279,6 +296,7 @@ void UFSstartupcmd(spi_device_handle_t spi) //startup sequence for UFS mode.
 	lcd_cmd(spi, command, vis); //page select 5
 	//set int time 1.6384ms
 	command[0] = 0x40;
+	command[1] = 0x00;
 	lcd_cmd(spi, command, vis); //integration multiplier high byte
 	command[0] = 0x41;
 	command[1] = 0x01;
@@ -287,6 +305,7 @@ void UFSstartupcmd(spi_device_handle_t spi) //startup sequence for UFS mode.
 	command[1] = 0xFF;
 	lcd_cmd(spi, command, vis); //integration length high byte
 	command[0] = 0x43;
+	command[1] = 0xFF;
 	lcd_cmd(spi, command, vis); //integration length low byte
 	command[0] = 0x82;
 	command[1] = 0x00;
@@ -298,6 +317,91 @@ void UFSstartupcmd(spi_device_handle_t spi) //startup sequence for UFS mode.
 	command[1] = 0x00;
 	lcd_cmd(spi, command, vis); //NOP
 	free(command);
+}
+
+void graystartupcmd(spi_device_handle_t spi) //startup sequence for UFS mode.
+{
+	uint8_t* command = malloc(2*sizeof(uint8_t));
+	int vis = 0;
+	command[0] = 0x81;
+	command[1] = 0x00;
+	lcd_cmd(spi, command, vis); //page select 1
+	command[0] = 0x5A;
+	command[1] = 0x00;
+	lcd_cmd(spi, command, vis); //Adjust 1
+	command[0] = 0x85;
+	command[1] = 0x00;
+	lcd_cmd(spi, command, vis); //page select 5
+	command[0] = 0x4B;
+	command[1] = 0x00;
+	lcd_cmd(spi, command, vis); //Adjust 2
+	command[0] = 0x00;
+	command[1] = 0x00;
+	lcd_cmd(spi, command, vis); //NOP
+	command[0] = 0x84;
+	command[1] = 0x00;
+	lcd_cmd(spi, command, vis); //page select 4
+	command[0] = 0x52;
+	command[1] = 0xC0;
+	lcd_cmd(spi, command, vis); //Set modulation selection
+	command[0] = 0x55;
+	command[1] = 0x23;
+	lcd_cmd(spi, command, vis); //Set gray mode
+	command[0] = 0x45;
+	command[1] = 0x01;
+	lcd_cmd(spi, command, vis); //set mod freq to 10MHz
+	command[0] = 0x85;
+	command[1] = 0x00;
+	lcd_cmd(spi, command, vis); //page select 5
+	//set int time 1.6384ms
+	command[0] = 0x40;
+	command[1] = 0x00;
+	lcd_cmd(spi, command, vis); //integration multiplier high byte
+	command[0] = 0x41;
+	command[1] = 0x01;
+	lcd_cmd(spi, command, vis); //integration multiplier low byte
+	command[0] = 0x42;
+	command[1] = 0xFF;
+	lcd_cmd(spi, command, vis); //integration length high byte
+	command[0] = 0x43;
+	command[1] = 0x00;
+	lcd_cmd(spi, command, vis); //integration length low byte
+	command[0] = 0x82;
+	command[1] = 0x00;
+	lcd_cmd(spi, command, vis); //page select 2
+	command[0] = 0x58;
+	command[1] = 0x01;
+	lcd_cmd(spi, command, vis); //start measurement
+	command[0] = 0x00;
+	command[1] = 0x00;
+	lcd_cmd(spi, command, vis); //NOP
+	free(command);
+}
+
+void getgraydata(spi_device_handle_t spi){
+	uint8_t* command = malloc(2*sizeof(uint8_t));
+	uint8_t* ret_data;
+	command[0] = 0x82;
+	command[1] = 0x00;
+	ret_data = lcd_cmd(spi, command, 0); //page select 2
+	for(int i = 0; i < 4; i++){
+		while(ret_data[0] != 0x35 || ret_data[1] != 0x98){
+			command[0] = 0x35;
+			command[1] = 0x00;
+			lcd_cmd(spi, command, 0); //Read STATUS
+			command[0] = 0x00;
+			command[1] = 0x00;
+			ret_data = lcd_cmd(spi, command, 1); //NOP, read return of status read
+		}
+		for(int j = 0; j < 24; j++){
+			command[0] = 0x2C;
+			command[1] = 0x00;
+			lcd_cmd(spi, command, 1);
+		}
+		command[0] = 0x00;
+		command[1] = 0x00;
+		ret_data = lcd_cmd(spi, command, 1); //NOP
+	}
 }
 
 void getUFSdata(spi_device_handle_t spi, unsigned int* ret_dist) //return a frame of UFS data
@@ -313,14 +417,18 @@ void getUFSdata(spi_device_handle_t spi, unsigned int* ret_dist) //return a fram
 			command[1] = 0x00;
 			lcd_cmd(spi, command, 0); //Read STATUS
 			command[0] = 0x00;
+			command[1] = 0x00;
 			ret_data = lcd_cmd(spi, command, 1); //NOP, read return of status read
 		}
 		command[0] = 0x34;
+		command[1] = 0x00;
 		lcd_cmd(spi, command, 0); //read MSB
 		command[0] = 0x34;
+		command[1] = 0x00;
 		ret_data = lcd_cmd(spi, command, 1); //read LSB
 		ret_dist[i] = ret_data[1] * 256;
 		command[0] = 0x00;
+		command[1] = 0x00;
 		ret_data = lcd_cmd(spi, command, 1); //NOP
 		ret_dist[i] += ret_data[1];
 	}
@@ -483,6 +591,9 @@ void app_main(void)
 			}else if(strcmp((char*) inputcommand, (const char*) "ufs start") == 0){
 				UFSstartupcmd(spi);
 				real_command = 1;
+			}else if(strcmp((char*) inputcommand, (const char*) "gray start") == 0){
+				graystartupcmd(spi);
+				real_command = 1;
 			}else if(strcmp((char*) inputcommand, (const char*) "ufs data") == 0){
 				getUFSdata(spi, distances);
 				char dist_str[6] = {0,0,0,0,0,0};
@@ -496,6 +607,9 @@ void app_main(void)
 				strcat(tx_buffer, "\n\0");
 				netflags = 2;
 				while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
+				real_command = 1;
+			}else if(strcmp((char*) inputcommand, (const char*) "gray data") == 0){
+				getgraydata(spi);
 				real_command = 1;
 			}
 			if(real_command){
