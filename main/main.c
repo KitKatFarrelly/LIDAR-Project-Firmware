@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_system.h"
@@ -260,7 +262,7 @@ void sequencercmd(spi_device_handle_t spi) //startup sequence for lidar
 	free(command);
 }
 
-void UFSstartupcmd(spi_device_handle_t spi) //startup sequence for UFS mode.
+void UFSstartupcmd(spi_device_handle_t spi) //this preps the sensor to gather a single UFS frame
 {
 	uint8_t* command = malloc(2*sizeof(uint8_t));
 	int vis = 0;
@@ -418,18 +420,18 @@ void getUFSdata(spi_device_handle_t spi, unsigned int* ret_dist) //return a fram
 			lcd_cmd(spi, command, 0); //Read STATUS
 			command[0] = 0x00;
 			command[1] = 0x00;
-			ret_data = lcd_cmd(spi, command, 1); //NOP, read return of status read
+			ret_data = lcd_cmd(spi, command, 0); //NOP, read return of status read
 		}
 		command[0] = 0x34;
 		command[1] = 0x00;
 		lcd_cmd(spi, command, 0); //read MSB
 		command[0] = 0x34;
 		command[1] = 0x00;
-		ret_data = lcd_cmd(spi, command, 1); //read LSB
+		ret_data = lcd_cmd(spi, command, 0); //read LSB
 		ret_dist[i] = ret_data[1] * 256;
 		command[0] = 0x00;
 		command[1] = 0x00;
-		ret_data = lcd_cmd(spi, command, 1); //NOP
+		ret_data = lcd_cmd(spi, command, 0); //NOP
 		ret_dist[i] += ret_data[1];
 	}
 	free(command);
@@ -567,10 +569,8 @@ void app_main(void)
 			lcd_cmd(spi, command, 1);
 		}else{
 			while(rx_buffer[len] != 0 && iter < 16){
-				if((rx_buffer[len] >= 'a' && rx_buffer[len] <= 'z') || (rx_buffer[len] == ' ')){ //only accepts lower case letters and space
-					inputcommand[iter] = rx_buffer[len];
-					iter++;
-				}
+				inputcommand[iter] = rx_buffer[len]; //copies full command to a separate buffer then clears buffer
+				iter++;
 				rx_buffer[len] = 0;
 				len++;
 			}
@@ -588,27 +588,49 @@ void app_main(void)
 			}else if(strcmp((char*) inputcommand, (const char*) "sequencer") == 0){
 				sequencercmd(spi);
 				real_command = 1;
-			}else if(strcmp((char*) inputcommand, (const char*) "ufs start") == 0){
-				UFSstartupcmd(spi);
-				real_command = 1;
-			}else if(strcmp((char*) inputcommand, (const char*) "gray start") == 0){
-				graystartupcmd(spi);
-				real_command = 1;
-			}else if(strcmp((char*) inputcommand, (const char*) "ufs data") == 0){
-				getUFSdata(spi, distances);
-				char dist_str[6] = {0,0,0,0,0,0};
-				strcpy(tx_buffer, "distances: ");
-				for(int dist_iter = 0; dist_iter < 4; dist_iter++){
-					sprintf(dist_str,"%05u", distances[dist_iter]);
-					strcat(tx_buffer, dist_str);
-					strcat(tx_buffer, ", ");
+			}else if(strncmp((char*) inputcommand, (const char*) "ufs data", 8) == 0){
+				int iterate = 0;
+				char dist_str[7] = {0,0,0,0,0,0,0};
+				double output_dist = 0.0;
+				int num = 0;
+				int dem = 0;
+				if(strlen((char*) inputcommand) > 8){ //if the input command has a number of iterations set after the command
+					len = 8;
+					while(inputcommand[len] != 0 && iterate < 1000){
+						if(inputcommand[len] >= '0' && inputcommand[len] <= '9'){
+							iterate = iterate * 10;
+							iterate += inputcommand[len] - '0';
+						}
+					}
 				}
-
-				strcat(tx_buffer, "\n\0");
+				if(iterate < 1){
+					iterate = 1;
+				}
+				strcpy(tx_buffer, "collecting ");
+				sprintf(dist_str, "%d", iterate);
+				strcat(tx_buffer, dist_str);
+				strcat(tx_buffer, " distance frames\n\0");
 				netflags = 2;
 				while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
+				for(int j = 0; j < iterate; j++){ //grab n number of data points
+					UFSstartupcmd(spi);
+					getUFSdata(spi, distances);
+					strcpy(tx_buffer, "distance: ");
+					num = distances[3] - distances[1];
+					dem = distances[2] - distances[0];
+					output_dist = 3.14159265 + atan(((double)num) / ((double)dem));
+					output_dist = (7.49481145 * output_dist / 3.14159265); //assumes 10MHz. divide by 4 again if 40Mhz, etc etc.
+					//(I don't actually know if this is supposed to be 10MHz or 2.5Mhz with 10Mhz modclk. guess we'll have to see. If its actually supposed to be 2.5Mhz then multiply by 4.)
+					sprintf(dist_str, "%2.3f", output_dist);
+					strcat(tx_buffer, dist_str);
+					strcat(tx_buffer, "\n\0");
+					netflags = 2;
+					while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
+					vTaskDelay(100 / portTICK_PERIOD_MS);
+				}
 				real_command = 1;
 			}else if(strcmp((char*) inputcommand, (const char*) "gray data") == 0){
+				graystartupcmd(spi);
 				getgraydata(spi);
 				real_command = 1;
 			}
