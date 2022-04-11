@@ -569,8 +569,10 @@ void app_main(void)
 			lcd_cmd(spi, command, 1);
 		}else{
 			while(rx_buffer[len] != 0 && iter < 16){
-				inputcommand[iter] = rx_buffer[len]; //copies full command to a separate buffer then clears buffer
-				iter++;
+				if(rx_buffer[len] != '\n' && rx_buffer[len] != '\r'){ //ensure that no control characters get in
+					inputcommand[iter] = rx_buffer[len]; //copies full command to a separate buffer then clears buffer
+					iter++;
+				}
 				rx_buffer[len] = 0;
 				len++;
 			}
