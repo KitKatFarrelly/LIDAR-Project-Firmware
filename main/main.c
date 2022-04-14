@@ -406,7 +406,7 @@ void getgraydata(spi_device_handle_t spi){
 	}
 }
 
-void getUFSdata(spi_device_handle_t spi, unsigned int* ret_dist) //return a frame of UFS data
+void getUFSdata(spi_device_handle_t spi, unsigned int* ret_dist, uint8_t* flags) //return a frame of UFS data
 {
 	uint8_t* command = malloc(2*sizeof(uint8_t));
 	uint8_t* ret_data;
@@ -428,11 +428,12 @@ void getUFSdata(spi_device_handle_t spi, unsigned int* ret_dist) //return a fram
 		command[0] = 0x34;
 		command[1] = 0x00;
 		ret_data = lcd_cmd(spi, command, 0); //read LSB
-		ret_dist[i] = ret_data[1] * 256;
+		ret_dist[i] = ret_data[1] * 64; //since distance is 14 bits, its split between upper 8 and lower 6. So we only need to shift the upper bits 6 bits.
 		command[0] = 0x00;
 		command[1] = 0x00;
 		ret_data = lcd_cmd(spi, command, 0); //NOP
-		ret_dist[i] += ret_data[1];
+		flags[i] = ret_data[1] & 0x03; //This byte contains saturation and overflow/underflow info in the last 2 bits. This must be cleaned out as separate flag data
+		ret_dist[i] += (ret_data[1] >> 2); //only takes the last 6 bits.
 	}
 	free(command);
 }
@@ -583,7 +584,6 @@ void app_main(void)
 			netflags = 2;
 			while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
 			int real_command = 0;
-			unsigned int distances[64] = {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0};
 			if(strcmp((char*) inputcommand, (const char*) "test") == 0){
 				testcmd(spi);
 				real_command = 1;
@@ -592,7 +592,11 @@ void app_main(void)
 				real_command = 1;
 			}else if(strncmp((char*) inputcommand, (const char*) "ufs data", 8) == 0){
 				int iterate = 0;
+				//initialize all strings here
+				unsigned int distances[4] = {0,0,0,0};
+				uint8_t flags[4] = {0,0,0,0};
 				char dist_str[7] = {0,0,0,0,0,0,0};
+				char flagstr[5] = {0,0,0,0,0};
 				double output_dist = 0.0;
 				int num = 0;
 				int dem = 0;
@@ -616,7 +620,7 @@ void app_main(void)
 				while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
 				for(int j = 0; j < iterate; j++){ //grab n number of data points
 					UFSstartupcmd(spi);
-					getUFSdata(spi, distances);
+					getUFSdata(spi, distances,flags);
 					strcpy(tx_buffer, "distance: ");
 					num = distances[3] - distances[1];
 					dem = distances[2] - distances[0];
@@ -625,6 +629,13 @@ void app_main(void)
 					//(I don't actually know if this is supposed to be 10MHz or 2.5Mhz with 10Mhz modclk. guess we'll have to see. If its actually supposed to be 2.5Mhz then multiply by 4.)
 					sprintf(dist_str, "%2.3f", output_dist);
 					strcat(tx_buffer, dist_str);
+					//print flags here lol
+					strcat(tx_buffer, "\nflags:");
+					flagstr[0] = (char) flags[0] + '0'; //repeating this 4 times is less overhead than a loop
+					flagstr[1] = (char) flags[1] + '0';
+					flagstr[2] = (char) flags[2] + '0';
+					flagstr[3] = (char) flags[3] + '0'; //could this be bad coding practices?
+					strcat(tx_buffer, flagstr);
 					strcat(tx_buffer, "\n\0");
 					netflags = 2;
 					while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
