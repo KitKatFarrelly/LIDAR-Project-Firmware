@@ -1,3 +1,0 @@
-source "C:/Users/kitkat/Downloads/esp-idf-v4.3.1/esp-idf-v4.3.1/components/bootloader/Kconfig.projbuild"
-source "C:/Users/kitkat/Downloads/esp-idf-v4.3.1/esp-idf-v4.3.1/components/esptool_py/Kconfig.projbuild"
-source "C:/Users/kitkat/Downloads/esp-idf-v4.3.1/esp-idf-v4.3.1/components/partition_table/Kconfig.projbuild"
