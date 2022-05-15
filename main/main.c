@@ -649,7 +649,7 @@ void app_main(void)
 				graystartupcmd(spi);
 				getgraydata(spi);
 				real_command = 1;
-			}else if(strcmp((char*) inputcommand, (const char*) "integmul", 8) == 0){ //sets integration multiplier for sensor
+			}else if(strncmp((char*) inputcommand, (const char*) "integmul", 8) == 0){ //sets integration multiplier for sensor
 				char mult_str[6] = {0,0,0,0,0,0};
 				integ_mult = 0;
 				unsigned char chars_read = 0; //keeps track of how many characters read
@@ -681,7 +681,7 @@ void app_main(void)
 					while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
 					vTaskDelay(100 / portTICK_PERIOD_MS);
 				}
-			}else if(strcmp((char*) inputcommand, (const char*) "integlen", 8) == 0){ //sets integration length for sensor
+			}else if(strncmp((char*) inputcommand, (const char*) "integlen", 8) == 0){ //sets integration length for sensor
 				char len_str[6] = {0,0,0,0,0,0};
 				integ_len = 0;
 				unsigned char chars_read = 0; //keeps track of how many characters read
