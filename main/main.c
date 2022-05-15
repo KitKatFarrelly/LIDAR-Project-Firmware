@@ -42,6 +42,8 @@ char rx_buffer[128];
 char tx_buffer[128];
 char addr_str[128];
 int ip_protocol = 0;
+int integ_len = 0xFFFF;
+int integ_mult = 0x0001;
 struct sockaddr_in6 dest_addr;
 
 struct sockaddr_storage source_addr;
@@ -298,16 +300,16 @@ void UFSstartupcmd(spi_device_handle_t spi) //this preps the sensor to gather a 
 	lcd_cmd(spi, command, vis); //page select 5
 	//set int time 1.6384ms
 	command[0] = 0x40;
-	command[1] = 0x00;
+	command[1] = (integ_mult >> 2) && 0xFF;
 	lcd_cmd(spi, command, vis); //integration multiplier high byte
 	command[0] = 0x41;
-	command[1] = 0x01;
+	command[1] = (integ_mult) && 0xFF;
 	lcd_cmd(spi, command, vis); //integration multiplier low byte
 	command[0] = 0x42;
-	command[1] = 0xFF;
+	command[1] = (integ_len >> 2) && 0xFF;
 	lcd_cmd(spi, command, vis); //integration length high byte
 	command[0] = 0x43;
-	command[1] = 0xFF;
+	command[1] = (integ_len) && 0xFF;
 	lcd_cmd(spi, command, vis); //integration length low byte
 	command[0] = 0x82;
 	command[1] = 0x00;
@@ -607,6 +609,7 @@ void app_main(void)
 							iterate = iterate * 10;
 							iterate += inputcommand[len] - '0';
 						}
+						len++; //make sure you iterate , kids!
 					}
 				}
 				if(iterate < 1){
@@ -646,6 +649,70 @@ void app_main(void)
 				graystartupcmd(spi);
 				getgraydata(spi);
 				real_command = 1;
+			}else if(strcmp((char*) inputcommand, (const char*) "integmul", 8) == 0){ //sets integration multiplier for sensor
+				char mult_str[6] = {0,0,0,0,0,0};
+				integ_mult = 0;
+				unsigned char chars_read = 0; //keeps track of how many characters read
+				if(strlen((char*) inputcommand) > 8){ //if the input command has a number of iterations set after the command
+					len = 8;
+					while(inputcommand[len] != 0 && chars_read < 4){
+						if(inputcommand[len] >= '0' && inputcommand[len] <= '9'){ //reads a hexadecimal number into mult
+							integ_mult += 16 * chars_read * (inputcommand[len] - '0');
+							mult_str[chars_read] = inputcommand[len];
+							chars_read++;
+						}else if(inputcommand[len] >= 'A' && inputcommand[len] <= 'F'){
+							integ_mult += 16 * chars_read * (inputcommand[len] - 'A' + 10);
+							mult_str[chars_read] = inputcommand[len];
+							chars_read++;
+						}else if(inputcommand[len] >= 'a' && inputcommand[len] <= 'f'){
+							integ_mult += 16 * chars_read * (inputcommand[len] - 'a' + 10);
+							mult_str[chars_read] = inputcommand[len];
+							chars_read++;
+						}
+						len++;
+					}
+					if(chars_read < 4){
+						strcpy(tx_buffer, "ERROR: incorrect length\n\0");
+					}else{
+						mult_str[chars_read] = '\n';
+						strcpy(tx_buffer, mult_str);
+					}
+					netflags = 2;
+					while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
+					vTaskDelay(100 / portTICK_PERIOD_MS);
+				}
+			}else if(strcmp((char*) inputcommand, (const char*) "integlen", 8) == 0){ //sets integration length for sensor
+				char len_str[6] = {0,0,0,0,0,0};
+				integ_len = 0;
+				unsigned char chars_read = 0; //keeps track of how many characters read
+				if(strlen((char*) inputcommand) > 8){ //if the input command has a number of iterations set after the command
+					len = 8;
+					while(inputcommand[len] != 0 && chars_read < 4){
+						if(inputcommand[len] >= '0' && inputcommand[len] <= '9'){ //reads a hexadecimal number into mult
+							integ_len += 16 * chars_read * (inputcommand[len] - '0');
+							len_str[chars_read] = inputcommand[len];
+							chars_read++;
+						}else if(inputcommand[len] >= 'A' && inputcommand[len] <= 'F'){
+							integ_len += 16 * chars_read * (inputcommand[len] - 'A' + 10);
+							len_str[chars_read] = inputcommand[len];
+							chars_read++;
+						}else if(inputcommand[len] >= 'a' && inputcommand[len] <= 'f'){
+							integ_len += 16 * chars_read * (inputcommand[len] - 'a' + 10);
+							len_str[chars_read] = inputcommand[len];
+							chars_read++;
+						}
+						len++;
+					}
+					if(chars_read < 4){
+						strcpy(tx_buffer, "ERROR: incorrect length\n\0");
+					}else{
+						len_str[chars_read] = '\n';
+						strcpy(tx_buffer, len_str);
+					}
+					netflags = 2;
+					while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
+					vTaskDelay(100 / portTICK_PERIOD_MS);
+				}
 			}
 			if(real_command){
 				strcpy(tx_buffer, "finished ");
