@@ -680,6 +680,7 @@ void app_main(void)
 					netflags = 2;
 					while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
 					vTaskDelay(100 / portTICK_PERIOD_MS);
+					real_command = 1;
 				}
 			}else if(strncmp((char*) inputcommand, (const char*) "integlen", 8) == 0){ //sets integration length for sensor
 				char len_str[6] = {0,0,0,0,0,0};
@@ -712,6 +713,7 @@ void app_main(void)
 					netflags = 2;
 					while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
 					vTaskDelay(100 / portTICK_PERIOD_MS);
+					real_command = 1;
 				}
 			}
 			if(real_command){
