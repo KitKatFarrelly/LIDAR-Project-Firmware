@@ -42,7 +42,7 @@ char rx_buffer[128];
 char tx_buffer[128];
 char addr_str[128];
 int ip_protocol = 0;
-int integ_len = 0xFFFF;
+int integ_len = 0x001F;
 int integ_mult = 0x0001;
 struct sockaddr_in6 dest_addr;
 
@@ -293,20 +293,20 @@ void UFSstartupcmd(spi_device_handle_t spi) //this preps the sensor to gather a 
 	command[1] = 0x2B;
 	lcd_cmd(spi, command, vis); //Set UFS mode
 	command[0] = 0x45;
-	command[1] = 0x01;
+	command[1] = 0x03;
 	lcd_cmd(spi, command, vis); //set mod freq to 10MHz
 	command[0] = 0x85;
 	command[1] = 0x00;
 	lcd_cmd(spi, command, vis); //page select 5
 	//set int time 1.6384ms
 	command[0] = 0x40;
-	command[1] = (integ_mult >> 2) && 0xFF;
+	command[1] = (integ_mult >> 8) && 0xFF;
 	lcd_cmd(spi, command, vis); //integration multiplier high byte
 	command[0] = 0x41;
 	command[1] = (integ_mult) && 0xFF;
 	lcd_cmd(spi, command, vis); //integration multiplier low byte
 	command[0] = 0x42;
-	command[1] = (integ_len >> 2) && 0xFF;
+	command[1] = (integ_len >> 8) && 0xFF;
 	lcd_cmd(spi, command, vis); //integration length high byte
 	command[0] = 0x43;
 	command[1] = (integ_len) && 0xFF;
@@ -408,7 +408,7 @@ void getgraydata(spi_device_handle_t spi){
 	}
 }
 
-void getUFSdata(spi_device_handle_t spi, unsigned int* ret_dist, uint8_t* flags) //return a frame of UFS data
+void getUFSdata(spi_device_handle_t spi, signed int* ret_dist, uint8_t* flags) //return a frame of UFS data
 {
 	uint8_t* command = malloc(2*sizeof(uint8_t));
 	uint8_t* ret_data;
@@ -431,11 +431,13 @@ void getUFSdata(spi_device_handle_t spi, unsigned int* ret_dist, uint8_t* flags)
 		command[1] = 0x00;
 		ret_data = lcd_cmd(spi, command, 0); //read LSB
 		ret_dist[i] = ret_data[1] * 64; //since distance is 14 bits, its split between upper 8 and lower 6. So we only need to shift the upper bits 6 bits.
+		ESP_LOGI(TAG, "Upper Bit: %x", ret_data[1]);
 		command[0] = 0x00;
 		command[1] = 0x00;
 		ret_data = lcd_cmd(spi, command, 0); //NOP
 		flags[i] = ret_data[1] & 0x03; //This byte contains saturation and overflow/underflow info in the last 2 bits. This must be cleaned out as separate flag data
 		ret_dist[i] += (ret_data[1] >> 2); //only takes the last 6 bits.
+		ESP_LOGI(TAG, "Lower Bit: %x", ret_data[1]);
 	}
 	free(command);
 }
@@ -595,7 +597,7 @@ void app_main(void)
 			}else if(strncmp((char*) inputcommand, (const char*) "ufs data", 8) == 0){
 				int iterate = 0;
 				//initialize all strings here
-				unsigned int distances[4] = {0,0,0,0};
+				signed int distances[4] = {0,0,0,0};
 				uint8_t flags[4] = {0,0,0,0};
 				char dist_str[7] = {0,0,0,0,0,0,0};
 				char flagstr[5] = {0,0,0,0,0};
@@ -625,9 +627,17 @@ void app_main(void)
 					UFSstartupcmd(spi);
 					getUFSdata(spi, distances,flags);
 					strcpy(tx_buffer, "distance: ");
+					for(int k = 0; k < 4; k++){
+						if(distances[k] & 0x2000){ //takes negative 14 bit numbers and converts them to negative integers.
+							distances[k] = ~distances[k] + 1;
+							distances[k] = distances[k] & 0x3FFF;
+							distances[k] = -distances[k];
+						}
+						ESP_LOGI(TAG, "distance: %d", distances[k]);
+					}
 					num = distances[3] - distances[1];
 					dem = distances[2] - distances[0];
-					output_dist = 3.14159265 + atan(((double)num) / ((double)dem));
+					output_dist = 3.14159265 + atan2((double)num, (double)dem);
 					output_dist = (7.49481145 * output_dist / 3.14159265); //assumes 10MHz. divide by 4 again if 40Mhz, etc etc.
 					//(I don't actually know if this is supposed to be 10MHz or 2.5Mhz with 10Mhz modclk. guess we'll have to see. If its actually supposed to be 2.5Mhz then multiply by 4.)
 					sprintf(dist_str, "%2.3f", output_dist);
