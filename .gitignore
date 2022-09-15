@@ -1,1 +1,6 @@
 build/
+sdkconfig
+sdkconfig.old
+.project
+CMakeLists.txt
+.cproject
