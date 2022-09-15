@@ -1,6 +1,7 @@
 build/
 sdkconfig
 sdkconfig.old
+sdkconfig.bak
 .project
 CMakeLists.txt
 .cproject
