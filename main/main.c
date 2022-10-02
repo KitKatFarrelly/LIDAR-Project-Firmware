@@ -26,6 +26,8 @@
 #include "lwip/sys.h"
 #include <lwip/netdb.h>
 
+#include "sdkconfig.h"
+
 #define PORT 3333
 
 //SPI definitions
@@ -36,10 +38,23 @@
 #define TRANS_SIZE   8
 #define DMA_CHAN     2
 
+//UART definitions
+#define ECHO_TEST_TXD (CONFIG_EXAMPLE_UART_TXD)
+#define ECHO_TEST_RXD (CONFIG_EXAMPLE_UART_RXD)
+#define ECHO_TEST_RTS (32) //since I don't use these I'm just setting them to a random I/O
+#define ECHO_TEST_CTS (33)
+
+#define ECHO_UART_PORT_NUM      (CONFIG_EXAMPLE_UART_PORT_NUM)
+#define ECHO_UART_BAUD_RATE     (CONFIG_EXAMPLE_UART_BAUD_RATE)
+#define ECHO_TASK_STACK_SIZE    (CONFIG_EXAMPLE_TASK_STACK_SIZE)
+
+#define BUF_SIZE (1024)
+
 static const char *TAG = "example";
 
-char rx_buffer[128];
-char tx_buffer[128];
+char rx_buffer[BUF_SIZE];
+char uart_rx_buffer[BUF_SIZE];
+char tx_buffer[BUF_SIZE];
 char addr_str[128];
 int ip_protocol = 0;
 int integ_len = 0x001F;
@@ -58,6 +73,52 @@ uint8_t netflags = 0;
  * mode for higher speed. The overhead of interrupt transactions is more than
  * just waiting for the transaction to complete.
  */
+
+static void uart_rx_tx(void)
+{
+    /* Configure parameters of an UART driver,
+     * communication pins and install the driver */
+    uart_config_t uart_config = {
+        .baud_rate = ECHO_UART_BAUD_RATE,
+        .data_bits = UART_DATA_8_BITS,
+        .parity    = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
+        .source_clk = UART_SCLK_APB,
+    };
+    int intr_alloc_flags = 0;
+
+#if CONFIG_UART_ISR_IN_IRAM
+    intr_alloc_flags = ESP_INTR_FLAG_IRAM;
+#endif
+
+    ESP_ERROR_CHECK(uart_driver_install(ECHO_UART_PORT_NUM, BUF_SIZE * 2, 0, 0, NULL, intr_alloc_flags));
+    ESP_ERROR_CHECK(uart_param_config(ECHO_UART_PORT_NUM, &uart_config));
+    ESP_ERROR_CHECK(uart_set_pin(ECHO_UART_PORT_NUM, ECHO_TEST_TXD, ECHO_TEST_RXD, ECHO_TEST_RTS, ECHO_TEST_CTS));
+}
+
+static void wait_for_command(void) //currently only supports uart, will update to also wait for udp messages
+{
+	memset(rx_buffer, 0, sizeof(rx_buffer));
+	ESP_LOGI(TAG, "Waiting for data");
+	while(1)
+	{
+		int uart_len = uart_read_bytes(ECHO_UART_PORT_NUM, uart_rx_buffer, BUF_SIZE, 20 / portTICK_RATE_MS);
+		if(uart_len > 0)
+		{
+			if(strchr(uart_rx_buffer, '\r') != NULL || strchr(uart_rx_buffer, '\n') != NULL){
+				strcat(rx_buffer, "\n\0");
+				break;
+			}
+			else
+			{
+				strcat(rx_buffer, uart_rx_buffer);
+			}
+			ESP_LOGI(TAG, "rx_buffer is now %s", rx_buffer);
+		}
+	}
+	ESP_LOGI(TAG, "command completed, exiting");
+}
 
 int udp_rcmsg(int sock)
 {
@@ -123,8 +184,9 @@ uint8_t* lcd_cmd(spi_device_handle_t spi, uint8_t* cmd, uint8_t outputflag)
 		strcat(tx_buffer, "          ");
 		strcat(tx_buffer, hex);
 		strcat(tx_buffer, "\n\0");
-		netflags = 2;
-		while(netflags == 2) vTaskDelay(10 / portTICK_PERIOD_MS);
+		//netflags = 2;
+		//while(netflags == 2) vTaskDelay(10 / portTICK_PERIOD_MS);
+		uart_write_bytes(ECHO_UART_PORT_NUM, (const char *) tx_buffer, strlen(tx_buffer));
     }
     cmd[0] = t.rx_data[0];
     cmd[1] = t.rx_data[1];
@@ -514,9 +576,15 @@ void app_main(void)
 	 * Read "Establishing Wi-Fi or Ethernet Connection" section in
 	 * examples/protocols/README.md for more information about this function.
 	 */
+	
+	/* commenting out functions that use wifi temporarily, changed to using uart for debugging
 	ESP_ERROR_CHECK(example_connect());
 	netflags = 0;
 	xTaskCreate(udp_server_startup, "udp_server", 4096, (void*)AF_INET, 5, NULL);
+	*/
+
+	//setup uart port
+	uart_rx_tx();
 
 	esp_err_t ret;
 	spi_device_handle_t spi;
@@ -551,12 +619,13 @@ void app_main(void)
 	lcd_cmd(spi, command, 0);
 	lcd_cmd(spi, command, 0);
 	while(1){
-		while(netflags != 0) vTaskDelay(100 / portTICK_PERIOD_MS);
+		//while(netflags != 0) vTaskDelay(100 / portTICK_PERIOD_MS);
 		iter = 0;
 		rx_buffer[len] = 0;
-		netflags = 1;
+		//netflags = 1;
 		len = 0;
-		while(netflags != 0) vTaskDelay(100 / portTICK_PERIOD_MS);
+		//while(netflags != 0) vTaskDelay(100 / portTICK_PERIOD_MS);
+		wait_for_command();
 		if(rx_buffer[len] >= '0' && rx_buffer[len] <= '9'){
 			while(rx_buffer[len] != 0 && iter < 4){
 				if(rx_buffer[len] >= '0' && rx_buffer[len] <= '9'){
@@ -585,8 +654,9 @@ void app_main(void)
 			strcpy(tx_buffer, "executing ");
 			strcat(tx_buffer, (char*)inputcommand);
 			strcat(tx_buffer, "\n\0");
-			netflags = 2;
-			while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
+			//netflags = 2;
+			//while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
+			uart_write_bytes(ECHO_UART_PORT_NUM, (const char *) tx_buffer, strlen(tx_buffer));
 			int real_command = 0;
 			if(strcmp((char*) inputcommand, (const char*) "test") == 0){
 				testcmd(spi);
@@ -621,8 +691,9 @@ void app_main(void)
 				sprintf(dist_str, "%d", iterate);
 				strcat(tx_buffer, dist_str);
 				strcat(tx_buffer, " distance frames\n\0");
-				netflags = 2;
-				while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
+				//netflags = 2;
+				//while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
+				uart_write_bytes(ECHO_UART_PORT_NUM, (const char *) tx_buffer, strlen(tx_buffer));
 				for(int j = 0; j < iterate; j++){ //grab n number of data points
 					UFSstartupcmd(spi);
 					getUFSdata(spi, distances,flags);
@@ -650,8 +721,9 @@ void app_main(void)
 					flagstr[3] = (char) flags[3] + '0'; //could this be bad coding practices?
 					strcat(tx_buffer, flagstr);
 					strcat(tx_buffer, "\n\0");
-					netflags = 2;
-					while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
+					//netflags = 2;
+					//while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
+					uart_write_bytes(ECHO_UART_PORT_NUM, (const char *) tx_buffer, strlen(tx_buffer));
 					vTaskDelay(100 / portTICK_PERIOD_MS);
 				}
 				real_command = 1;
@@ -663,22 +735,28 @@ void app_main(void)
 				char mult_str[6] = {0,0,0,0,0,0};
 				integ_mult = 0;
 				unsigned char chars_read = 0; //keeps track of how many characters read
+				int hex_place = 1;
 				if(strlen((char*) inputcommand) > 8){ //if the input command has a number of iterations set after the command
 					len = 8;
 					while(inputcommand[len] != 0 && chars_read < 4){
+						hex_place = 1;
+						for(int i = chars_read; i < 3; i++){
+							hex_place = hex_place * 16;
+						}
 						if(inputcommand[len] >= '0' && inputcommand[len] <= '9'){ //reads a hexadecimal number into mult
-							integ_mult += 16 * chars_read * (inputcommand[len] - '0');
+							integ_mult += hex_place * (inputcommand[len] - '0');
 							mult_str[chars_read] = inputcommand[len];
 							chars_read++;
 						}else if(inputcommand[len] >= 'A' && inputcommand[len] <= 'F'){
-							integ_mult += 16 * chars_read * (inputcommand[len] - 'A' + 10);
+							integ_mult += hex_place * (inputcommand[len] - 'A' + 10);
 							mult_str[chars_read] = inputcommand[len];
 							chars_read++;
 						}else if(inputcommand[len] >= 'a' && inputcommand[len] <= 'f'){
-							integ_mult += 16 * chars_read * (inputcommand[len] - 'a' + 10);
+							integ_mult += hex_place * (inputcommand[len] - 'a' + 10);
 							mult_str[chars_read] = inputcommand[len];
 							chars_read++;
 						}
+						ESP_LOGI(TAG, "integmul is now %x, %x", ((integ_mult >> 8) & 0xFF), (integ_mult & 0xFF));
 						len++;
 					}
 					if(chars_read < 4){
@@ -687,8 +765,9 @@ void app_main(void)
 						mult_str[chars_read] = '\n';
 						strcpy(tx_buffer, mult_str);
 					}
-					netflags = 2;
-					while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
+					//netflags = 2;
+					//while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
+					uart_write_bytes(ECHO_UART_PORT_NUM, (const char *) tx_buffer, strlen(tx_buffer));
 					vTaskDelay(100 / portTICK_PERIOD_MS);
 					real_command = 1;
 				}
@@ -696,22 +775,28 @@ void app_main(void)
 				char len_str[6] = {0,0,0,0,0,0};
 				integ_len = 0;
 				unsigned char chars_read = 0; //keeps track of how many characters read
+				int hex_place = 1;
 				if(strlen((char*) inputcommand) > 8){ //if the input command has a number of iterations set after the command
 					len = 8;
 					while(inputcommand[len] != 0 && chars_read < 4){
+						hex_place = 1;
+						for(int i = chars_read; i < 3; i++){
+							hex_place = hex_place * 16;
+						}
 						if(inputcommand[len] >= '0' && inputcommand[len] <= '9'){ //reads a hexadecimal number into mult
-							integ_len += 16 * chars_read * (inputcommand[len] - '0');
+							integ_len += hex_place * (inputcommand[len] - '0');
 							len_str[chars_read] = inputcommand[len];
 							chars_read++;
 						}else if(inputcommand[len] >= 'A' && inputcommand[len] <= 'F'){
-							integ_len += 16 * chars_read * (inputcommand[len] - 'A' + 10);
+							integ_len += hex_place * (inputcommand[len] - 'A' + 10);
 							len_str[chars_read] = inputcommand[len];
 							chars_read++;
 						}else if(inputcommand[len] >= 'a' && inputcommand[len] <= 'f'){
-							integ_len += 16 * chars_read * (inputcommand[len] - 'a' + 10);
+							integ_len += hex_place * (inputcommand[len] - 'a' + 10);
 							len_str[chars_read] = inputcommand[len];
 							chars_read++;
 						}
+						ESP_LOGI(TAG, "integlen is now %x, %x", ((integ_len >> 8) & 0xFF), (integ_len & 0xFF));
 						len++;
 					}
 					if(chars_read < 4){
@@ -720,8 +805,9 @@ void app_main(void)
 						len_str[chars_read] = '\n';
 						strcpy(tx_buffer, len_str);
 					}
-					netflags = 2;
-					while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
+					//netflags = 2;
+					//while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
+					uart_write_bytes(ECHO_UART_PORT_NUM, (const char *) tx_buffer, strlen(tx_buffer));
 					vTaskDelay(100 / portTICK_PERIOD_MS);
 					real_command = 1;
 				}
@@ -730,12 +816,14 @@ void app_main(void)
 				strcpy(tx_buffer, "finished ");
 				strcat(tx_buffer, (char*)inputcommand);
 				strcat(tx_buffer, "\n\0");
-				netflags = 2;
-				while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
+				//netflags = 2;
+				//while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
+				uart_write_bytes(ECHO_UART_PORT_NUM, (const char *) tx_buffer, strlen(tx_buffer));
 			}else{
 				strcpy(tx_buffer, "command not found\n\0");
-				netflags = 2;
-				while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
+				//netflags = 2;
+				//while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
+				uart_write_bytes(ECHO_UART_PORT_NUM, (const char *) tx_buffer, strlen(tx_buffer));
 			}
 
 		}
