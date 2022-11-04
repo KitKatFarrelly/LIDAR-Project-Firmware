@@ -100,7 +100,7 @@ static void uart_rx_tx(void)
 static void wait_for_command(void) //currently only supports uart, will update to also wait for udp messages
 {
 	memset(rx_buffer, 0, sizeof(rx_buffer));
-	ESP_LOGI(TAG, "Waiting for data");
+	ESP_LOGI(TAG, "Waiting for data from uart");
 	while(1)
 	{
 		int uart_len = uart_read_bytes(ECHO_UART_PORT_NUM, uart_rx_buffer, BUF_SIZE, 20 / portTICK_RATE_MS);
