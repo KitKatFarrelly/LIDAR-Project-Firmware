@@ -106,13 +106,21 @@ static void wait_for_command(void) //currently only supports uart, will update t
 		int uart_len = uart_read_bytes(ECHO_UART_PORT_NUM, uart_rx_buffer, BUF_SIZE, 20 / portTICK_RATE_MS);
 		if(uart_len > 0)
 		{
-			if(strchr(uart_rx_buffer, '\r') != NULL || strchr(uart_rx_buffer, '\n') != NULL){
+			char * first_cr = strchr(uart_rx_buffer, '\r');
+			char * first_lf = strchr(uart_rx_buffer, '\n');
+			if(first_cr != NULL)
+			{
+				*first_cr = '\0';
+			}
+			else if(first_lf != NULL)
+			{
+				*first_lf = '\0';
+			}
+			strcat(rx_buffer, uart_rx_buffer);
+			if(first_lf != NULL)
+			{
 				strcat(rx_buffer, "\n\0");
 				break;
-			}
-			else
-			{
-				strcat(rx_buffer, uart_rx_buffer);
 			}
 			ESP_LOGI(TAG, "rx_buffer is now %s", rx_buffer);
 		}
