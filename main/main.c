@@ -59,6 +59,7 @@ char addr_str[128];
 int ip_protocol = 0;
 int integ_len = 0x001F;
 int integ_mult = 0x0001;
+char image_mode = 0x2B;
 struct sockaddr_in6 dest_addr;
 
 struct sockaddr_storage source_addr;
@@ -334,7 +335,7 @@ void sequencercmd(spi_device_handle_t spi) //startup sequence for lidar
 	free(command);
 }
 
-void UFSstartupcmd(spi_device_handle_t spi) //this preps the sensor to gather a single UFS frame
+void depthstartupcmd(spi_device_handle_t spi) //this preps the sensor to gather a single UFS frame
 {
 	uint8_t* command = malloc(2*sizeof(uint8_t));
 	int vis = 0;
@@ -360,7 +361,7 @@ void UFSstartupcmd(spi_device_handle_t spi) //this preps the sensor to gather a 
 	command[1] = 0x30;
 	lcd_cmd(spi, command, vis); //Set modulation selection
 	command[0] = 0x55;
-	command[1] = 0x2B;
+	command[1] = image_mode;
 	lcd_cmd(spi, command, vis); //Set UFS mode
 	command[0] = 0x45;
 	command[1] = 0x03;
@@ -393,66 +394,7 @@ void UFSstartupcmd(spi_device_handle_t spi) //this preps the sensor to gather a 
 	free(command);
 }
 
-void graystartupcmd(spi_device_handle_t spi) //startup sequence for UFS mode.
-{
-	uint8_t* command = malloc(2*sizeof(uint8_t));
-	int vis = 0;
-	command[0] = 0x81;
-	command[1] = 0x00;
-	lcd_cmd(spi, command, vis); //page select 1
-	command[0] = 0x5A;
-	command[1] = 0x00;
-	lcd_cmd(spi, command, vis); //Adjust 1
-	command[0] = 0x85;
-	command[1] = 0x00;
-	lcd_cmd(spi, command, vis); //page select 5
-	command[0] = 0x4B;
-	command[1] = 0x00;
-	lcd_cmd(spi, command, vis); //Adjust 2
-	command[0] = 0x00;
-	command[1] = 0x00;
-	lcd_cmd(spi, command, vis); //NOP
-	command[0] = 0x84;
-	command[1] = 0x00;
-	lcd_cmd(spi, command, vis); //page select 4
-	command[0] = 0x52;
-	command[1] = 0xC0;
-	lcd_cmd(spi, command, vis); //Set modulation selection
-	command[0] = 0x55;
-	command[1] = 0x23;
-	lcd_cmd(spi, command, vis); //Set gray mode
-	command[0] = 0x45;
-	command[1] = 0x01;
-	lcd_cmd(spi, command, vis); //set mod freq to 10MHz
-	command[0] = 0x85;
-	command[1] = 0x00;
-	lcd_cmd(spi, command, vis); //page select 5
-	//set int time 1.6384ms
-	command[0] = 0x40;
-	command[1] = 0x00;
-	lcd_cmd(spi, command, vis); //integration multiplier high byte
-	command[0] = 0x41;
-	command[1] = 0x01;
-	lcd_cmd(spi, command, vis); //integration multiplier low byte
-	command[0] = 0x42;
-	command[1] = 0xFF;
-	lcd_cmd(spi, command, vis); //integration length high byte
-	command[0] = 0x43;
-	command[1] = 0x00;
-	lcd_cmd(spi, command, vis); //integration length low byte
-	command[0] = 0x82;
-	command[1] = 0x00;
-	lcd_cmd(spi, command, vis); //page select 2
-	command[0] = 0x58;
-	command[1] = 0x01;
-	lcd_cmd(spi, command, vis); //start measurement
-	command[0] = 0x00;
-	command[1] = 0x00;
-	lcd_cmd(spi, command, vis); //NOP
-	free(command);
-}
-
-void getgraydata(spi_device_handle_t spi){
+void getgraydata(spi_device_handle_t spi, signed int* ret_dist){
 	uint8_t* command = malloc(2*sizeof(uint8_t));
 	uint8_t* ret_data;
 	command[0] = 0x82;
@@ -470,11 +412,28 @@ void getgraydata(spi_device_handle_t spi){
 		for(int j = 0; j < 24; j++){
 			command[0] = 0x2C;
 			command[1] = 0x00;
-			lcd_cmd(spi, command, 1);
+			ret_data = lcd_cmd(spi, command, 1);
+			if(j > 0)
+			{
+				if(j % 3 == 1)
+				{
+					ret_dist[(i*16) + (2*j/3)] = (ret_data[1] << 4);
+				}
+				else if(j % 3 == 2)
+				{
+					ret_dist[(i*16) + ((2*j/3) - 1)] += (ret_data[1] >> 4)
+					ret_dist[(i*16) + (2*j/3)] = ((ret_data[1] & 0x0F) << 8);
+				}
+				else
+				{
+					ret_dist[(i*16) + ((2*j/3) - 1)] += ret_data[1];
+				}
+			}
 		}
 		command[0] = 0x00;
 		command[1] = 0x00;
 		ret_data = lcd_cmd(spi, command, 1); //NOP
+		ret_dist[(i*16) + 15] += ret_data[1];
 	}
 }
 
@@ -675,6 +634,7 @@ void app_main(void)
 			}else if(strncmp((char*) inputcommand, (const char*) "ufs data", 8) == 0){
 				int iterate = 0;
 				//initialize all strings here
+				image_mode = 0x2B;
 				signed int distances[4] = {0,0,0,0};
 				uint8_t flags[4] = {0,0,0,0};
 				char dist_str[7] = {0,0,0,0,0,0,0};
@@ -703,9 +663,9 @@ void app_main(void)
 				//while(netflags == 2) vTaskDelay(100 / portTICK_PERIOD_MS);
 				uart_write_bytes(ECHO_UART_PORT_NUM, (const char *) tx_buffer, strlen(tx_buffer));
 				for(int j = 0; j < iterate; j++){ //grab n number of data points
-					UFSstartupcmd(spi);
+					depthstartupcmd(spi);
 					getUFSdata(spi, distances,flags);
-					strcpy(tx_buffer, "distance: ");
+					strcpy(tx_buffer, "distance: \0");
 					for(int k = 0; k < 4; k++){
 						if(distances[k] & 0x2000){ //takes negative 14 bit numbers and converts them to negative integers.
 							distances[k] = ~distances[k] + 1;
@@ -736,8 +696,22 @@ void app_main(void)
 				}
 				real_command = 1;
 			}else if(strcmp((char*) inputcommand, (const char*) "gray data") == 0){
-				graystartupcmd(spi);
-				getgraydata(spi);
+				signed int distances[64] = {0};
+				image_mode = 0x23;
+				depthstartupcmd(spi);
+				getgraydata(spi,distances);
+				memset(tx_buffer, '\0', BUF_SIZE);
+				char pix_str[8] = {0};
+				for(int k = 0; k < 8; k++)
+				{
+					for int l = 0; l < 8; l++)
+					{
+						sprintf(pix_str, "%.4d, ", distances[(k * 8) + l]);
+						strcat(tx_buffer, pix_str);
+					}
+					strcat(tx_buffer, '\n');
+				}
+				uart_write_bytes(ECHO_UART_PORT_NUM, (const char *) tx_buffer, strlen(tx_buffer));
 				real_command = 1;
 			}else if(strncmp((char*) inputcommand, (const char*) "integmul", 8) == 0){ //sets integration multiplier for sensor
 				char mult_str[6] = {0,0,0,0,0,0};
