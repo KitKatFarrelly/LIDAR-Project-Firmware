@@ -421,12 +421,24 @@ void getgraydata(spi_device_handle_t spi, signed int* ret_dist){
 				}
 				else if(j % 3 == 2)
 				{
-					ret_dist[(i*16) + ((2*j/3) - 1)] += (ret_data[1] >> 4)
+					ret_dist[(i*16) + ((2*j/3) - 1)] += (ret_data[1] >> 4);
+					if(ret_dist[(i*16) + ((2*j/3) - 1)] & 0x0800) //takes negative 12 bit numbers and converts them to negative integers.
+					{
+						ret_dist[(i*16) + ((2*j/3) - 1)] = ~ret_dist[(i*16) + ((2*j/3) - 1)] + 1;
+						ret_dist[(i*16) + ((2*j/3) - 1)] = ret_dist[(i*16) + ((2*j/3) - 1)] & 0x0FFF;
+						ret_dist[(i*16) + ((2*j/3) - 1)] = -ret_dist[(i*16) + ((2*j/3) - 1)];
+					}
 					ret_dist[(i*16) + (2*j/3)] = ((ret_data[1] & 0x0F) << 8);
 				}
 				else
 				{
 					ret_dist[(i*16) + ((2*j/3) - 1)] += ret_data[1];
+					if(ret_dist[(i*16) + ((2*j/3) - 1)] & 0x0800) //takes negative 12 bit numbers and converts them to negative integers.
+					{
+						ret_dist[(i*16) + ((2*j/3) - 1)] = ~ret_dist[(i*16) + ((2*j/3) - 1)] + 1;
+						ret_dist[(i*16) + ((2*j/3) - 1)] = ret_dist[(i*16) + ((2*j/3) - 1)] & 0x0FFF;
+						ret_dist[(i*16) + ((2*j/3) - 1)] = -ret_dist[(i*16) + ((2*j/3) - 1)];
+					}
 				}
 			}
 		}
@@ -434,6 +446,12 @@ void getgraydata(spi_device_handle_t spi, signed int* ret_dist){
 		command[1] = 0x00;
 		ret_data = lcd_cmd(spi, command, 1); //NOP
 		ret_dist[(i*16) + 15] += ret_data[1];
+		if(ret_dist[(i*16) + 15] & 0x0800) //takes negative 12 bit numbers and converts them to negative integers.
+		{
+			ret_dist[(i*16) + 15] = ~ret_dist[(i*16) + 15] + 1;
+			ret_dist[(i*16) + 15] = ret_dist[(i*16) + 15] & 0x0FFF;
+			ret_dist[(i*16) + 15] = -ret_dist[(i*16) + 15];
+		}
 	}
 }
 
@@ -704,12 +722,12 @@ void app_main(void)
 				char pix_str[8] = {0};
 				for(int k = 0; k < 8; k++)
 				{
-					for int l = 0; l < 8; l++)
+					for(int l = 0; l < 8; l++)
 					{
 						sprintf(pix_str, "%.4d, ", distances[(k * 8) + l]);
 						strcat(tx_buffer, pix_str);
 					}
-					strcat(tx_buffer, '\n');
+					strcat(tx_buffer, "\n");
 				}
 				uart_write_bytes(ECHO_UART_PORT_NUM, (const char *) tx_buffer, strlen(tx_buffer));
 				real_command = 1;
